@@ -44,7 +44,7 @@ func setupLogging(mode, logPath, logLevel string) *os.File {
 		log.SetOutput(file)
 	}
 	baseHandler := slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: parseLogLevel(logLevel)})
-	slog.SetDefault(slog.New(telemetry.NewOTelLogHandler(telemetry.NewLogHandler(baseHandler))))
+	slog.SetDefault(slog.New(telemetry.NewLogHandler(telemetry.NewOTelLogHandler(baseHandler))))
 	return file
 }
 
@@ -65,8 +65,26 @@ func setupOTel(ctx context.Context) func(context.Context) error {
 }
 
 // initAudio initializes the audio context, speaker, and microphone.
+// On macOS it uses CoreAudio's VoiceProcessingIO AudioUnit for hardware/OS-level
+// Acoustic Echo Cancellation (AEC), falling back to malgo if unavailable.
 // Returns a cleanup function that uninitializes and frees all resources.
 func initAudio(ctx context.Context) (*audio.Speaker, *audio.Mic, func()) {
+	if speaker, mic, err := audio.NewVoiceProcessingDuplex(); err == nil {
+		if err := speaker.Start(); err == nil {
+			slog.InfoContext(ctx, "audio initialized with macOS VoiceProcessingIO (AEC enabled)")
+			cleanup := func() {
+				mic.Stop()
+				speaker.Stop()
+			}
+			return speaker, mic, cleanup
+		} else {
+			slog.WarnContext(ctx, "VoiceProcessingIO start failed; falling back to malgo", "err", err)
+			mic.Stop()
+		}
+	} else {
+		slog.WarnContext(ctx, "VoiceProcessingIO unavailable; falling back to malgo", "err", err)
+	}
+
 	audioCtx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(string) {})
 	if err != nil {
 		fatal(ctx, "init audio context", err)
@@ -120,8 +138,7 @@ func main() {
 		defer f.Close()
 	}
 
-	ctx, end := telemetry.StartSession(context.Background())
-	defer end()
+	ctx := context.Background()
 
 	if shutdown := setupOTel(ctx); shutdown != nil {
 		otelShutdown = shutdown

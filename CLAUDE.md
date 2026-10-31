@@ -76,14 +76,14 @@ directly.
 - **`cmd/client`** — CLI entrypoint wiring the above together; blocks on
   `Ctrl+C` for clean shutdown.
 - **`internal/telemetry`** — a trimmed copy of the agent's own package of
-  the same name (see `../livekit-agent/CLAUDE.md`'s "Correlation IDs, tracing, and
-  metrics" section for the full design): `StartSession` stamps a
-  correlation ID and opens a root span per run, `StartStage` times
-  connect/publish/playback stages as child spans + metrics, both no-ops
-  until `SetupOTel` installs a real OTLP pipeline. `cmd/client/main.go`
-  calls `SetupOTel` when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see
-  `.env.example`) and wraps the default slog handler in
-  `telemetry.NewLogHandler` so every log line carries `correlation_id`.
+  the same name (see `../livekit-agent/CLAUDE.md`'s "Sessions, turns, tracing,
+  and metrics" section for the full design): `StartTrace` opens a trace for
+  connecting and for each text or voice message, `ContextWithTraceparent` joins
+  a live turn the agent started, and `StartStage` times stages as child spans +
+  metrics, all no-ops until `SetupOTel` installs a real OTLP pipeline.
+  `cmd/client/main.go` calls `SetupOTel` when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
+  (see `.env.example`) and wraps the default slog handler in
+  `telemetry.NewLogHandler` so log lines carry `session_id` and `turn_id`.
 
 ## Observability
 
@@ -92,12 +92,11 @@ brings up `otel-lgtm` (unified Grafana UI at http://localhost:3002 for
 Traces, Metrics, and Logs) alongside the agent itself, with OTLP/gRPC port
 4317 published to the host. Point this client's
 `OTEL_EXPORTER_OTLP_ENDPOINT` (in `.env`) at `localhost:4317` to export
-`internal/room.Connect`'s stage spans (`room.mint_token`, `room.connect`,
-`room.publish_track`, `playback.time_to_first_agent_audio`), stage metrics,
-and slog logs there. A client-observed trace and the agent-side spans that
-produced it are separate traces today (no trace context is propagated over
-the LiveKit room) — see `../livekit-agent/docs/DESIGN.md` §7 for why, and what
-unifying them would take.
+the stage spans (`room.mint_token`, `room.connect`, `room.publish_track`,
+`room.chat_exchange`, `client.first_audio`), stage metrics, and slog logs there.
+A client span and the agent spans that produced it are the same trace: the
+`traceparent` stream attribute carries it across the room, in whichever
+direction the turn started. See `../livekit-agent/docs/DESIGN.md` §7.
 
 ## Known constraint when testing here
 

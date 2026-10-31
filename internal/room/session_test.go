@@ -59,3 +59,31 @@ func TestExchangesKeepIdentityAndRemoveLateReplies(t *testing.T) {
 		t.Fatal("unrelated exchange removed")
 	}
 }
+
+func TestBargeInOnsetBoostAndConsonantBridge(t *testing.T) {
+	frame := make([]int16, 960)
+	for i := range frame {
+		frame[i] = 250
+	}
+	rms := frameRMS(frame)
+	boosted := scaleFrameToRMS(frame, rms, 650, 3.5)
+	if got := frameRMS(boosted); got < 600 {
+		t.Fatalf("expected boosted RMS >= 600, got %v", got)
+	}
+
+	quiet := make([]int16, 960)
+	bridged := bridgeConsonantDip(quiet, 0)
+	if got := frameRMS(bridged); got < 520 {
+		t.Fatalf("expected bridged consonant dip RMS >= 520, got %v", got)
+	}
+
+	sp := &smokeSpeaker{}
+	ls := &LiveSession{speaker: sp}
+	ls.triggerLocalBargeIn()
+	if sp.drains != 1 {
+		t.Fatalf("expected speaker drain on local barge-in, got %d", sp.drains)
+	}
+	if ls.isSpeakerActive() {
+		t.Fatal("expected speaker to report inactive during local barge-in mute window")
+	}
+}

@@ -3,75 +3,122 @@ package telemetry
 import (
 	"bytes"
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
+
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-func TestStartSessionAndCorrelationID(t *testing.T) {
-	if got := CorrelationID(context.Background()); got != "" {
-		t.Fatalf("CorrelationID on a bare context = %q, want \"\"", got)
-	}
+var (
+	exporter      = tracetest.NewInMemoryExporter()
+	installTracer sync.Once
+)
 
-	ctx, end := StartSession(context.Background())
-	defer end()
-	id := CorrelationID(ctx)
-	if id == "" {
-		t.Fatal("CorrelationID after StartSession is empty")
+// These run first (source order): they cover the no-SDK path, and the global
+// provider below can only be installed once.
+
+func TestStartTraceWithoutAnSDK(t *testing.T) {
+	if got := TurnID(context.Background()); got != "" {
+		t.Fatalf("TurnID on a bare context = %q", got)
 	}
+	ctx, end := StartTrace(context.Background(), "test")
+	defer end(nil)
+	id := TurnID(ctx)
 	if len(id) != 32 {
-		t.Errorf("CorrelationID = %q, want a 32-char hex trace ID", id)
+		t.Fatalf("TurnID = %q, want a 32-char hex trace ID", id)
 	}
-
-	child, cancel := context.WithCancel(ctx)
-	defer cancel()
-	if got := CorrelationID(child); got != id {
-		t.Errorf("CorrelationID on derived context = %q, want %q", got, id)
-	}
-
-	ctx2, end2 := StartSession(context.Background())
-	defer end2()
-	if got := CorrelationID(ctx2); got == id {
-		t.Error("two StartSession calls produced the same correlation ID")
-	}
-}
-
-func TestStartStagePreservesCorrelationID(t *testing.T) {
-	ctx, end := StartSession(context.Background())
-	defer end()
-	id := CorrelationID(ctx)
-
 	stageCtx, stageEnd := StartStage(ctx, "test.stage")
-	if got := CorrelationID(stageCtx); got != id {
-		t.Errorf("CorrelationID inside a stage = %q, want %q", got, id)
+	defer stageEnd(nil)
+	if got := TurnID(stageCtx); got != id {
+		t.Errorf("TurnID inside a stage = %q, want %q", got, id)
 	}
-	stageEnd(nil)
-
-	failCtx, failEnd := StartStage(ctx, "test.stage.error")
-	if got := CorrelationID(failCtx); got != id {
-		t.Errorf("CorrelationID inside a failing stage = %q, want %q", got, id)
+	if got := Traceparent(ctx); !strings.Contains(got, id) {
+		t.Errorf("Traceparent = %q, want it to contain %s", got, id)
 	}
-	failEnd(errTest)
+	ctx2, end2 := StartTrace(context.Background(), "test")
+	defer end2(nil)
+	if TurnID(ctx2) == id {
+		t.Error("two traces produced the same ID")
+	}
 }
 
-var errTest = errors.New("boom")
+func TestContextWithTraceparent(t *testing.T) {
+	const id = "4bf92f3577b34da6a3ce929d0e0e4736"
+	ctx := ContextWithTraceparent(context.Background(), "00-"+id+"-00f067aa0ba902b7-01")
+	if got := TurnID(ctx); got != id {
+		t.Errorf("TurnID = %q, want %q", got, id)
+	}
+	if got := TurnID(ContextWithTraceparent(context.Background(), "")); got != "" {
+		t.Errorf("TurnID with no traceparent = %q", got)
+	}
+}
 
-func TestLogHandlerAttachesCorrelationID(t *testing.T) {
+func TestLogHandlerAttachesIDs(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(NewLogHandler(slog.NewTextHandler(&buf, nil)))
 
-	logger.InfoContext(context.Background(), "no session")
-	if strings.Contains(buf.String(), "correlation_id") {
-		t.Errorf("log line without a session unexpectedly has correlation_id: %s", buf.String())
+	logger.InfoContext(context.Background(), "nothing")
+	if strings.Contains(buf.String(), "_id=") {
+		t.Errorf("log line outside a session has IDs: %s", buf.String())
 	}
 	buf.Reset()
 
-	ctx, end := StartSession(context.Background())
-	defer end()
-	id := CorrelationID(ctx)
-	logger.InfoContext(ctx, "with session")
-	if !strings.Contains(buf.String(), "correlation_id="+id) {
-		t.Errorf("log line = %q, want it to contain correlation_id=%s", buf.String(), id)
+	ctx, end := StartTrace(WithSessionID(context.Background(), "PA_1"), "test")
+	defer end(nil)
+	logger.InfoContext(ctx, "in trace")
+	if want := "turn_id=" + TurnID(ctx); !strings.Contains(buf.String(), want) || !strings.Contains(buf.String(), "session_id=PA_1") {
+		t.Errorf("log line = %q, want session_id and %s", buf.String(), want)
+	}
+}
+
+func TestLogHandlerReachesBothBranchesOfTheOTelFanout(t *testing.T) {
+	var local, bridged bytes.Buffer
+	logger := slog.New(NewLogHandler(&fanoutHandler{local: slog.NewTextHandler(&local, nil), otel: slog.NewTextHandler(&bridged, nil)}))
+
+	logger.InfoContext(WithSessionID(context.Background(), "PA_1"), "line")
+	for name, buf := range map[string]*bytes.Buffer{"local": &local, "otel": &bridged} {
+		if !strings.Contains(buf.String(), "session_id=PA_1") {
+			t.Errorf("%s branch = %q, want session_id", name, buf.String())
+		}
+	}
+}
+
+func TestSpans(t *testing.T) {
+	installTracer.Do(func() {
+		otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter)))
+	})
+	exporter.Reset()
+
+	ctx, end := StartTrace(WithSessionID(context.Background(), "PA_1"), "root")
+	_, stageEnd := StartStage(ctx, "stage")
+	stageEnd(nil)
+	end(nil)
+
+	spans := exporter.GetSpans()
+	if len(spans) != 2 {
+		t.Fatalf("spans = %d, want 2", len(spans))
+	}
+	stage, root := spans[0], spans[1]
+	if root.Parent.IsValid() {
+		t.Error("StartTrace should make a true root")
+	}
+	if root.SpanContext.TraceID().String() != TurnID(ctx) {
+		t.Error("TurnID is not the trace ID actually exported")
+	}
+	if !stage.Parent.Equal(root.SpanContext) {
+		t.Error("stage is not a child of the root")
+	}
+	for _, s := range []tracetest.SpanStub{root, stage} {
+		found := false
+		for _, kv := range s.Attributes {
+			found = found || (kv.Key == "session.id" && kv.Value.AsString() == "PA_1")
+		}
+		if !found {
+			t.Errorf("%s has no session.id: %v", s.Name, s.Attributes)
+		}
 	}
 }

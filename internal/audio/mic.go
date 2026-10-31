@@ -12,6 +12,7 @@ import (
 // supplies real-time pacing — no ticker needed, unlike a synthetic source.
 type Mic struct {
 	device *malgo.Device
+	vpio   *vpioDuplex
 	frames chan []int16
 
 	pending []int16 // partial frame carried across callback invocations
@@ -38,9 +39,18 @@ func NewMic(ctx *malgo.AllocatedContext) (*Mic, error) {
 	return m, nil
 }
 
-func (m *Mic) Start() error { return m.device.Start() }
+func (m *Mic) Start() error {
+	if m.vpio != nil {
+		return m.vpio.start()
+	}
+	return m.device.Start()
+}
 
 func (m *Mic) Stop() {
+	if m.vpio != nil {
+		m.vpio.stop()
+		return
+	}
 	_ = m.device.Stop()
 	m.device.Uninit()
 }
@@ -58,6 +68,10 @@ func (m *Mic) onData(_, input []byte, _ uint32) {
 	for i := 0; i < n; i++ {
 		samples[i] = int16(binary.LittleEndian.Uint16(input[i*2:]))
 	}
+	m.pushSamples(samples)
+}
+
+func (m *Mic) pushSamples(samples []int16) {
 	m.pending = append(m.pending, samples...)
 
 	for len(m.pending) >= FrameSamples {

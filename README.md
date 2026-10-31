@@ -79,7 +79,7 @@ mac-client/
   internal/audio/opuscodec/        # cgo Opus encode/decode (RTP framing: 48kHz/20ms/960 samples)
   internal/roomprotocol/     # topic and stream-attribute contract constants
   internal/room/             # LiveKit token+connect, publish mic track, subscribe agent track
-  internal/telemetry/        # correlation IDs + OTel spans/metrics (mirrors the agent's own)
+  internal/telemetry/        # session/turn IDs + OTel spans/metrics (mirrors the agent's own)
 ```
 
 `internal/room` also registers text-stream handlers on `agent.transcript`

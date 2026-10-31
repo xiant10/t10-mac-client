@@ -156,3 +156,16 @@ func TestLiveConsoleOlderFinalPreservesNewerUtterance(t *testing.T) {
 		t.Fatalf("terminal = %q", got)
 	}
 }
+
+func TestLiveConsoleDeduplicatesFinalTranscriptWithSameUtteranceID(t *testing.T) {
+	var out bytes.Buffer
+	c := newLiveConsole(&out)
+	c.stateForUtterance(1, 1, "listening")
+	c.updateInterim(2, 1, "u", "嘿，早上好", true)
+	c.finalTranscript(3, 1, "嘿，早上好。")
+	c.finalTranscript(4, 1, "嘿，早上好。") // Duplicate from lk.transcription
+	got := strings.Join(terminalRows(out.String(), 80), "\n")
+	if got != "You: 嘿，早上好。" {
+		t.Fatalf("terminal = %q", got)
+	}
+}

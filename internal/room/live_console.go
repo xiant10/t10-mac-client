@@ -21,6 +21,7 @@ type liveConsole struct {
 	owner, id, text, lastState          string
 	stateAt, cutoff, finalAt, interimAt int64
 	utteranceID, finalUtteranceID       uint64
+	seenFinalUtterance                  map[uint64]bool
 	placeholder                         bool
 }
 
@@ -184,7 +185,15 @@ func (c *liveConsole) transcript(at int64, text string) { c.finalTranscript(at, 
 func (c *liveConsole) finalTranscript(at int64, utteranceID uint64, text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if utteranceID == 0 && at <= c.finalAt {
+	if utteranceID > 0 {
+		if c.seenFinalUtterance[utteranceID] {
+			return
+		}
+		if c.seenFinalUtterance == nil {
+			c.seenFinalUtterance = make(map[uint64]bool)
+		}
+		c.seenFinalUtterance[utteranceID] = true
+	} else if at <= c.finalAt {
 		return
 	}
 	c.finalAt = max(c.finalAt, at)

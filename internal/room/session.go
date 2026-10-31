@@ -99,6 +99,7 @@ func (ex *exchange) complete() {
 // Session is an active LiveKit room connection that exchanges text and
 // voice messages with the agent.
 type Session struct {
+	ctx     context.Context // carries the session ID
 	room    *lksdk.Room
 	speaker *audio.Speaker
 	con     *console
@@ -110,12 +111,14 @@ type Session struct {
 
 // Connect joins roomName as identity and registers the handlers for the
 // agent's transcript, chat-reply, and voice-reply topics. speaker is where a
-// voice message's synthesized reply gets played. ctx should carry a
-// correlation ID from telemetry.StartSession — the room.mint_token/
-// room.connect spans it produces are threaded off of it (each subsequent
-// SendText/SendVoice call opens its own session span instead, one per
-// client-initiated request rather than one for the whole run).
-func Connect(ctx context.Context, cfg Config, roomName, identity string, speaker *audio.Speaker) (*Session, error) {
+// voice message's synthesized reply gets played. Connecting is a trace of its
+// own, and each subsequent SendText/SendVoice call is another: one per
+// client-initiated request rather than one for the whole run.
+func Connect(ctx context.Context, cfg Config, roomName, identity string, speaker *audio.Speaker) (_ *Session, err error) {
+	baseCtx := ctx
+	ctx, endConnect := telemetry.StartTrace(ctx, "client.connect")
+	defer func() { endConnect(err) }()
+
 	_, end := telemetry.StartStage(ctx, "room.mint_token")
 	serverURL, token, _, _, err := cfg.ResolveCredentials(ctx, roomName, identity)
 	end(err)
@@ -130,7 +133,7 @@ func Connect(ctx context.Context, cfg Config, roomName, identity string, speaker
 		return nil, fmt.Errorf("connect: %w", err)
 	}
 
-	s := &Session{room: r, speaker: speaker, con: newConsole(os.Stdout), pending: make(map[string]*exchange)}
+	s := &Session{ctx: telemetry.WithSessionID(baseCtx, r.LocalParticipant.SID()), room: r, speaker: speaker, con: newConsole(os.Stdout), pending: make(map[string]*exchange)}
 
 	// The SDK invokes each registered handler in its own goroutine per
 	// incoming stream (see server-sdk-go's Room.handleIncomingText: "go
@@ -165,16 +168,22 @@ func (s *Session) Disconnect() { s.room.Disconnect() }
 func (s *Session) SendText(text string) {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
-	ctx, endSession := telemetry.StartSession(context.Background())
-	defer endSession()
+	ctx, endTrace := telemetry.StartTrace(s.ctx, "client.exchange", attribute.String("turn.mode", "text"))
 
 	s.con.line("You: " + text)
 
 	id, ex := s.begin(ctx, false)
 	defer s.remove(id)
-	_, endStage := telemetry.StartStage(ctx, "room.chat_exchange")
-	s.room.LocalParticipant.SendText(text, lksdk.StreamTextOptions{Topic: roomprotocol.TopicChat, Attributes: map[string]string{roomprotocol.AttrRequestID: id}})
-	endStage(s.wait(ex))
+	stageCtx, endStage := telemetry.StartStage(ctx, "room.chat_exchange", attribute.String("request_id", id))
+	s.room.LocalParticipant.SendText(text, lksdk.StreamTextOptions{Topic: roomprotocol.TopicChat, Attributes: requestAttributes(stageCtx, id)})
+	err := s.wait(ex)
+	endStage(err)
+	endTrace(err)
+}
+
+// requestAttributes names a message and starts the agent off in its trace.
+func requestAttributes(ctx context.Context, id string) map[string]string {
+	return map[string]string{roomprotocol.AttrRequestID: id, roomprotocol.AttrTraceparent: telemetry.Traceparent(ctx)}
 }
 
 // SendVoice uploads a recorded WAV as a one-shot voice message and blocks
@@ -185,14 +194,13 @@ func (s *Session) SendText(text string) {
 func (s *Session) SendVoice(wavBytes []byte) {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
-	ctx, endSession := telemetry.StartSession(context.Background())
-	defer endSession()
+	ctx, endTrace := telemetry.StartTrace(s.ctx, "client.exchange", attribute.String("turn.mode", "voice"))
 
 	id, ex := s.begin(ctx, true)
 	defer s.remove(id)
-	_, endStage := telemetry.StartStage(ctx, "room.voice_exchange", attribute.Int("audio.bytes", len(wavBytes)))
+	stageCtx, endStage := telemetry.StartStage(ctx, "room.voice_exchange", attribute.Int("audio.bytes", len(wavBytes)), attribute.String("request_id", id))
 	w := s.room.LocalParticipant.StreamBytes(lksdk.StreamBytesOptions{
-		Topic: roomprotocol.TopicVoice, MimeType: "audio/wav", Attributes: map[string]string{roomprotocol.AttrRequestID: id},
+		Topic: roomprotocol.TopicVoice, MimeType: "audio/wav", Attributes: requestAttributes(stageCtx, id),
 	})
 	uploaded := make(chan struct{})
 	callback := func() { close(uploaded) }
@@ -200,13 +208,16 @@ func (s *Session) SendVoice(wavBytes []byte) {
 	select {
 	case <-uploaded:
 		w.Close()
-		endStage(s.wait(ex))
+		err := s.wait(ex)
+		endStage(err)
+		endTrace(err)
 	case <-time.After(replyTimeout):
 		w.Close()
 		s.con.line("(upload timed out)")
-		endStage(fmt.Errorf("upload timed out"))
+		err := fmt.Errorf("upload timed out")
+		endStage(err)
+		endTrace(err)
 	}
-
 }
 
 func (s *Session) wait(ex *exchange) error {

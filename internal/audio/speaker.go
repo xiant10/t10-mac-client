@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gen2brain/malgo"
 )
@@ -15,9 +16,11 @@ import (
 // drives an RTP track's send rate.
 type Speaker struct {
 	device *malgo.Device
+	vpio   *vpioDuplex
 
-	mu  sync.Mutex
-	buf []int16
+	mu           sync.Mutex
+	buf          []int16
+	lastRendered time.Time
 }
 
 // NewSpeaker opens (but does not start) the default playback device on ctx.
@@ -39,9 +42,18 @@ func NewSpeaker(ctx *malgo.AllocatedContext) (*Speaker, error) {
 	return s, nil
 }
 
-func (s *Speaker) Start() error { return s.device.Start() }
+func (s *Speaker) Start() error {
+	if s.vpio != nil {
+		return s.vpio.start()
+	}
+	return s.device.Start()
+}
 
 func (s *Speaker) Stop() {
+	if s.vpio != nil {
+		s.vpio.stop()
+		return
+	}
 	_ = s.device.Stop()
 	s.device.Uninit()
 }
@@ -57,7 +69,19 @@ func (s *Speaker) Push(samples []int16) {
 func (s *Speaker) Drain() {
 	s.mu.Lock()
 	s.buf = s.buf[:0]
+	s.lastRendered = time.Time{}
 	s.mu.Unlock()
+}
+
+// IsPlaying reports whether the speaker has queued samples or rendered audio
+// within the recent acoustic tail window.
+func (s *Speaker) IsPlaying() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.buf) > 0 {
+		return true
+	}
+	return !s.lastRendered.IsZero() && time.Since(s.lastRendered) < 80*time.Millisecond
 }
 
 // onData runs on miniaudio's real-time audio thread. miniaudio pre-zeroes
@@ -72,5 +96,20 @@ func (s *Speaker) onData(output, _ []byte, frameCount uint32) {
 		binary.LittleEndian.PutUint16(output[i*2:], uint16(s.buf[i]))
 	}
 	s.buf = s.buf[avail:]
+	if avail > 0 {
+		s.lastRendered = time.Now()
+	}
 	s.mu.Unlock()
+}
+
+func (s *Speaker) renderSamples(output []int16) int {
+	s.mu.Lock()
+	avail := min(len(output), len(s.buf))
+	copy(output[:avail], s.buf[:avail])
+	s.buf = s.buf[avail:]
+	if avail > 0 {
+		s.lastRendered = time.Now()
+	}
+	s.mu.Unlock()
+	return avail
 }
