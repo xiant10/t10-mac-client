@@ -40,6 +40,8 @@ type Config struct {
 	Tenant    string
 	Username  string
 	Password  string
+	// NoBrowser prints the sign-in URL instead of opening a browser.
+	NoBrowser bool
 
 	// Direct room token (if already acquired)
 	RoomToken string

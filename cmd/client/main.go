@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -126,7 +127,9 @@ func main() {
 	authToken := flag.String("token", "", "Auth bearer token for room admission (env: AUTH_TOKEN)")
 	tenant := flag.String("tenant", "", "Tenant identifier for room admission (env: AUTH_TENANT)")
 	username := flag.String("username", "", "Username for login to auth service (env: AUTH_USERNAME)")
-	password := flag.String("password", "", "Password for login to auth service (env: AUTH_PASSWORD)")
+	password := flag.String("password", "", "Password for login to a dev-mode auth service (env: AUTH_PASSWORD)")
+	noBrowser := flag.Bool("no-browser", false, "print the sign-in URL instead of opening a browser")
+	logout := flag.Bool("logout", false, "end the stored auth session and exit")
 	flag.Parse()
 
 	if *startMode != "live" && *startMode != "text" && *startMode != "voice" {
@@ -172,6 +175,17 @@ func main() {
 		resolvedPassword = getenv("AUTH_PASSWORD", "")
 	}
 
+	if *logout {
+		if resolvedAuthURL == "" {
+			fatal(ctx, "logout", errors.New("-auth-url or AUTH_URL is required"))
+		}
+		if err := room.Logout(ctx, resolvedAuthURL); err != nil {
+			fatal(ctx, "logout", err)
+		}
+		fmt.Println("Signed out.")
+		return
+	}
+
 	cfg := room.Config{
 		URL:       getenv("LIVEKIT_URL", "ws://localhost:8890"),
 		APIKey:    getenv("LIVEKIT_API_KEY", "devkey"),
@@ -181,6 +195,7 @@ func main() {
 		Tenant:    resolvedTenant,
 		Username:  resolvedUsername,
 		Password:  resolvedPassword,
+		NoBrowser: *noBrowser,
 	}
 
 	speaker, mic, audioCleanup := initAudio(ctx)

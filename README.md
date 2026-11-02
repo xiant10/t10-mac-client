@@ -40,6 +40,13 @@ cp .env.example .env
 go build -o t10-client ./cmd/client
 
 # Option A: Connect using Auth Service Room Admission (recommended production pattern)
+# Signs in through the browser and keeps the session in the Keychain.
+./t10-client -auth-url http://localhost:8081 -room voice-agent-demo
+
+# End that session:
+./t10-client -auth-url http://localhost:8081 -logout
+
+# With a password, against a dev-mode auth service only:
 ./t10-client -auth-url http://localhost:8081 -username ada@acme.example -password change-me-enterprise-admin -room voice-agent-demo
 
 # Or with an existing Bearer token:
@@ -106,11 +113,12 @@ LiveKit token minting) is duplicated rather than shared.
 
 ## Verifying the live path without microphone permissions
 
-Run an agent in a separate room from normal calls:
+Run an agent. It joins any room with someone in it, so use a test LiveKit server
+rather than a second agent on the one normal calls use:
 
 ```bash
 cd ../livekit-agent
-go run ./cmd/agent -room ux-smoke -identity ux-agent
+go run ./cmd/agent -identity ux-agent
 ```
 
 Then run the client's opt-in integration test with a spoken question WAV:

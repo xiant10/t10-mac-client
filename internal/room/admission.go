@@ -39,6 +39,8 @@ type authErrorResponse struct {
 const DefaultHTTPTimeout = 10 * time.Second
 
 // Login performs a password grant to the auth service's /v1/token endpoint.
+// The auth service only accepts this in its local development mode; everywhere
+// else, sessionAccessToken signs the user in through the browser.
 func Login(ctx context.Context, authURL, username, password, tenant string) (string, error) {
 	if authURL == "" {
 		return "", errors.New("auth URL is required")
@@ -153,7 +155,8 @@ func RequestAdmission(ctx context.Context, authURL, token, tenant, room string) 
 
 // ResolveCredentials acquires room credentials either by calling the central auth
 // service (the production pattern) or minting locally with LIVEKIT_API_SECRET
-// (explicit development mode).
+// (explicit development mode). With an auth URL and no token or password, the
+// user signs in through the browser and the session is kept in the Keychain.
 func (cfg Config) ResolveCredentials(ctx context.Context, roomName, identity string) (serverURL string, token string, effectiveRoom string, canPublish bool, err error) {
 	if cfg.RoomToken != "" {
 		serverURL = cfg.URL
@@ -178,7 +181,12 @@ func (cfg Config) ResolveCredentials(ctx context.Context, roomName, identity str
 		}
 
 		if authToken == "" {
-			return "", "", "", false, errors.New("auth room admission requires either AuthToken or Username/Password")
+			cfg.AuthURL = authURL
+			tok, err := sessionAccessToken(ctx, cfg)
+			if err != nil {
+				return "", "", "", false, fmt.Errorf("auth sign-in: %w", err)
+			}
+			authToken = tok
 		}
 
 		slog.InfoContext(ctx, "requesting room admission", "auth_url", authURL, "room", roomName, "tenant", cfg.Tenant)
