@@ -1,7 +1,7 @@
 # mac-client
 
 A real interactive LiveKit participant for the [t10
-agent](../livekit-agent): it captures your default microphone, publishes it as an
+agent](../t10-livekit-agent): it captures your default microphone, publishes it as an
 Opus audio track, and plays whatever audio track the agent publishes back
 through your default speaker — while also printing the live STT transcript
 and the LLM reply as they stream in. It's the mic/speaker counterpart to
@@ -21,10 +21,10 @@ file.
 
 ## Running
 
-Start the agent stack first (from `../livekit-agent`):
+Start the agent stack first (from `../t10-livekit-agent`):
 
 ```bash
-cd ../livekit-agent
+cd ../t10-livekit-agent
 cp .env.example .env   # fill in DASHSCOPE_API_KEY, OPENAI_*
 docker compose up --build
 ```
@@ -106,7 +106,7 @@ what paces publishing and playback in real time; contrast the agent's own
 a manual `time.Ticker` because nothing else supplies that pacing on its
 side.
 
-This is a separate Go module from `../livekit-agent` (a deliberate choice — see the
+This is a separate Go module from `../t10-livekit-agent` (a deliberate choice — see the
 workspace root's README), so it can't import the agent's `internal/`
 packages; the small amount of overlapping logic (Opus framing constants,
 LiveKit token minting) is duplicated rather than shared.
@@ -117,7 +117,7 @@ Run an agent. It joins any room with someone in it, so use a test LiveKit server
 rather than a second agent on the one normal calls use:
 
 ```bash
-cd ../livekit-agent
+cd ../t10-livekit-agent
 go run ./cmd/agent -identity ux-agent
 ```
 
