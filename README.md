@@ -1,12 +1,17 @@
-# mac-client
+# t10 Mac Client
 
-A real interactive LiveKit participant for the [t10
-agent](../t10-livekit-agent): it captures your default microphone, publishes it as an
-Opus audio track, and plays whatever audio track the agent publishes back
-through your default speaker — while also printing the live STT transcript
-and the LLM reply as they stream in. It's the mic/speaker counterpart to
-the agent's `cmd/testclient live`, which only simulates a call from a WAV
-file.
+A native macOS interactive LiveKit participant CLI client for the t10 voice agent.
+
+## Project Description
+
+**t10 Mac Client** is a native macOS command-line client designed for real-time interactive testing and communication with `t10-livekit-agent`. Capturing the default system microphone and outputting through system speakers via CoreAudio, it joins LiveKit voice rooms as a full WebRTC participant while rendering live speech-to-text transcripts and streaming LLM responses directly in the terminal.
+
+### Key Capabilities
+
+- **Full-Duplex Audio**: Low-latency bidirectional WebRTC audio streaming using native CoreAudio bindings via `malgo` (miniaudio) and Opus compression.
+- **Live Terminal Telemetry**: Prints real-time STT transcripts and streaming LLM tokens side-by-side as they arrive.
+- **Flexible Authentication**: Connects using either direct room tokens or Auth Server browser-based room admission (storing credentials securely in the macOS Keychain).
+- **Interactive Speech Testing**: Acts as the real-time microphone/speaker counterpart to automated WAV simulation harnesses.
 
 ## Prerequisites
 
