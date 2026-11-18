@@ -96,7 +96,7 @@ the stage spans (`room.mint_token`, `room.connect`, `room.publish_track`,
 `room.chat_exchange`, `client.first_audio`), stage metrics, and slog logs there.
 A client span and the agent spans that produced it are the same trace: the
 `traceparent` stream attribute carries it across the room, in whichever
-direction the turn started. See `../livekit-agent/docs/DESIGN.md` §7.
+direction the turn started. See `../livekit-agent/docs/design.md` §7.
 
 ## Known constraint when testing here
 
