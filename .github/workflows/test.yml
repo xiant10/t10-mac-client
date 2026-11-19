@@ -1,0 +1,23 @@
+name: test
+
+# Builds and tests every push to main and every pull request. GitHub sets CI, so
+# a test that needs the database fails here instead of skipping.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  go:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Core Audio is macOS only; libopus as the README says.
+      - run: brew install opus opusfile pkgconf
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test -p 1 ./...
