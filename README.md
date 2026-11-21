@@ -156,6 +156,10 @@ ready. The client correlates replies by request ID and waits for all advertised
 chunks before completing the exchange. Run matching livekit-agent/mac-client versions: the
 message protocol now requires `agent.message.status` and chunk attributes.
 
+## Contact
+
+Questions, feedback or commercial enquiries: [hi@tacten.ai](mailto:hi@tacten.ai).
+
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
