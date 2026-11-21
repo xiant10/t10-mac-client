@@ -42,23 +42,23 @@ Then, in this directory:
 
 ```bash
 cp .env.example .env
-go build -o t10-client ./cmd/client
+go build -o t10-mac-client ./cmd/t10-mac-client
 
 # Option A: Connect using Auth Service Room Admission (recommended production pattern)
 # Signs in through the browser and keeps the session in the Keychain.
-./t10-client -auth-url http://localhost:8081 -room voice-agent-demo
+./t10-mac-client -auth-url http://localhost:8081 -room voice-agent-demo
 
 # End that session:
-./t10-client -auth-url http://localhost:8081 -logout
+./t10-mac-client -auth-url http://localhost:8081 -logout
 
 # With a password, against a dev-mode auth service only:
-./t10-client -auth-url http://localhost:8081 -username ada@acme.example -password change-me-enterprise-admin -room voice-agent-demo
+./t10-mac-client -auth-url http://localhost:8081 -username ada@acme.example -password change-me-enterprise-admin -room voice-agent-demo
 
 # Or with an existing Bearer token:
-./t10-client -auth-url http://localhost:8081 -token "$AUTH_TOKEN" -room voice-agent-demo
+./t10-mac-client -auth-url http://localhost:8081 -token "$AUTH_TOKEN" -room voice-agent-demo
 
 # Option B: Local Token Minting (explicit development mode with LIVEKIT_API_SECRET)
-./t10-client -mode live -room voice-agent-demo
+./t10-mac-client -mode live -room voice-agent-demo
 ```
 
 Rebuild the executable after changing source; an already running process keeps
@@ -86,7 +86,7 @@ see `.env.example` and `CLAUDE.md`'s "Observability" section (UI at http://local
 
 ```
 mac-client/
-  cmd/client/main.go         # CLI entrypoint: opens audio devices, connects, blocks on Ctrl+C
+  cmd/t10-mac-client/main.go         # CLI entrypoint: opens audio devices, connects, blocks on Ctrl+C
   internal/audio/            # malgo mic capture + speaker playback, 48kHz mono PCM16
   internal/audio/opuscodec/        # cgo Opus encode/decode (RTP framing: 48kHz/20ms/960 samples)
   internal/roomprotocol/     # topic and stream-attribute contract constants
@@ -123,7 +123,7 @@ rather than a second agent on the one normal calls use:
 
 ```bash
 cd ../t10-livekit-agent
-go run ./cmd/agent -identity ux-agent
+go run ./cmd/t10-livekit-agent -identity ux-agent
 ```
 
 Then run the client's opt-in integration test with a spoken question WAV:
@@ -144,8 +144,8 @@ completed lines are printed once in full. `[thinking]` indicates the silent
 wait for an answer. A `‹` at the start of a long preview means earlier words
 are outside that row, not that a second reply was generated.
 
-Live mode writes diagnostic/SDK logs to `t10-client.log` by default so they
-cannot corrupt the caption row. Use `tail -f t10-client.log` in another terminal
+Live mode writes diagnostic/SDK logs to `t10-mac-client.log` by default so they
+cannot corrupt the caption row. Use `tail -f t10-mac-client.log` in another terminal
 to inspect state messages and microphone diagnostics. `-log-file` selects a
 different file; an empty value restores stderr logging.
 

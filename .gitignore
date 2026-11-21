@@ -1,4 +1,5 @@
 # Binaries
+/t10-mac-client
 /t10-client
 /client
 *.exe
@@ -39,4 +40,5 @@ Thumbs.db
 *~
 
 # Local live-call diagnostics
+/t10-mac-client.log
 /t10-client.log

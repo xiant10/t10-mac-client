@@ -1,4 +1,4 @@
-module t10-client
+module t10-mac-client
 
 go 1.26.1
 

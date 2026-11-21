@@ -2,15 +2,13 @@
 
 For coding agents working in this repo.
 
-## What this is
-
 This is the **mac-client** subproject of the `t10` workspace — an
 independent Go module and git repo, separate from the sibling `livekit-agent/`
 repo (see its own `CLAUDE.md`). It supports interactive text, recorded voice messages, and live calls. In live
 mode it is a LiveKit participant: it captures the default microphone, publishes it as an Opus
 audio track, and plays back whatever audio track the agent publishes to
 the room. See `README.md` for prerequisites and how to run it against the
-agent's `docker-compose.yml` LiveKit dev server.
+agent's `compose.yml` LiveKit dev server.
 
 Being a separate module means it cannot import the agent's `internal/`
 packages — the small amount of overlapping logic (Opus RTP framing
@@ -20,16 +18,16 @@ local to each module. Room contract constants live in internal/roomprotocol;
 the workspace architecture check verifies their parity. Future public libraries
 may be versioned deliberately; separate modules do not prohibit sharing public APIs.
 
-## Commands
+## Build and test
 
 ```bash
 go build ./...   # build everything
 go vet ./...     # vet
 go test ./...    # run all tests (terminal rendering; no audio device needed)
 # Run with Auth Service room admission (production pattern):
-go run ./cmd/client -auth-url http://localhost:8081 -username ada@acme.example -password change-me-enterprise-admin -room voice-agent-demo
+go run ./cmd/t10-mac-client -auth-url http://localhost:8081 -username ada@acme.example -password change-me-enterprise-admin -room voice-agent-demo
 # Or in local dev mode (requires LIVEKIT_API_SECRET in .env):
-go run ./cmd/client -room voice-agent-demo -identity mic-client
+go run ./cmd/t10-mac-client -room voice-agent-demo -identity mic-client
 ```
 
 Requires `libopus`, `libopusfile`, and `pkg-config` on the host (same cgo
@@ -37,6 +35,10 @@ Opus binding the agent uses): `brew install opus opusfile pkgconf` on
 macOS. Microphone/speaker I/O itself needs no extra system library — it
 goes through `malgo` (miniaudio), which links the OS's native audio API
 directly.
+
+## Read first
+
+- `README.md`, prerequisites and how to run it against the voice worker
 
 ## Architecture
 
@@ -73,7 +75,7 @@ directly.
   terminal would actually be showing, escape sequences replayed.
 - **`internal/roomprotocol`** — SDK-free room topic and stream-attribute constants;
   workspace checks compare them with the agent copy.
-- **`cmd/client`** — CLI entrypoint wiring the above together; blocks on
+- **`cmd/t10-mac-client`** — CLI entrypoint wiring the above together; blocks on
   `Ctrl+C` for clean shutdown.
 - **`internal/telemetry`** — a trimmed copy of the agent's own package of
   the same name (see `../livekit-agent/CLAUDE.md`'s "Sessions, turns, tracing,
@@ -81,7 +83,7 @@ directly.
   connecting and for each text or voice message, `ContextWithTraceparent` joins
   a live turn the agent started, and `StartStage` times stages as child spans +
   metrics, all no-ops until `SetupOTel` installs a real OTLP pipeline.
-  `cmd/client/main.go` calls `SetupOTel` when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
+  `cmd/t10-mac-client/main.go` calls `SetupOTel` when `OTEL_EXPORTER_OTLP_ENDPOINT` is set
   (see `.env.example`) and wraps the default slog handler in
   `telemetry.NewLogHandler` so log lines carry `session_id` and `turn_id`.
 
@@ -110,7 +112,7 @@ automated checks; treat those as "compiles cleanly and renders correctly,"
 not "confirmed working audio," and say so explicitly rather than claiming the
 mic/speaker path was manually verified.
 
-## Rules for every t10 repo
+## Rules
 
 - A route change updates `docs/api.md` (and `docs/openapi.yaml` where there is one) in the same change.
 - Every doc under `docs/` starts with front matter: `title`, `audience` (consumer, contributor or operator), `kind` (guide, reference, design or record), `status` and `summary`. Plans, reviews and validation logs go in `docs/records/`. The workspace's `make check` (`scripts/check-docs.py`) holds this and checks relative links.

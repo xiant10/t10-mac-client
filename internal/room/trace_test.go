@@ -10,8 +10,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
-	"t10-client/internal/roomprotocol"
-	"t10-client/internal/telemetry"
+	"t10-mac-client/internal/roomprotocol"
+	"t10-mac-client/internal/telemetry"
 )
 
 var (

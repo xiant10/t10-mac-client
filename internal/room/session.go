@@ -23,9 +23,9 @@ import (
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"go.opentelemetry.io/otel/attribute"
 
-	"t10-client/internal/audio"
-	"t10-client/internal/roomprotocol"
-	"t10-client/internal/telemetry"
+	"t10-mac-client/internal/audio"
+	"t10-mac-client/internal/roomprotocol"
+	"t10-mac-client/internal/telemetry"
 )
 
 // Config holds the LiveKit and Auth connection details needed to join a room.
