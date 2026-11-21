@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"t10-client/internal/audio"
+	"t10-mac-client/internal/audio"
 )
 
 type smokeSpeaker struct {

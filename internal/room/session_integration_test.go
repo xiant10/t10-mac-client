@@ -8,8 +8,8 @@ import (
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"os"
 	"strings"
-	"t10-client/internal/audio"
-	"t10-client/internal/roomprotocol"
+	"t10-mac-client/internal/audio"
+	"t10-mac-client/internal/roomprotocol"
 	"testing"
 	"time"
 )

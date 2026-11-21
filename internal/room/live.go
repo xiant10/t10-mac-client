@@ -20,9 +20,9 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media"
 	"github.com/pion/webrtc/v4/pkg/media/samplebuilder"
 
-	"t10-client/internal/audio/opuscodec"
-	"t10-client/internal/roomprotocol"
-	"t10-client/internal/telemetry"
+	"t10-mac-client/internal/audio/opuscodec"
+	"t10-mac-client/internal/roomprotocol"
+	"t10-mac-client/internal/telemetry"
 )
 
 // LiveOption configures optional parameters for ConnectLive.

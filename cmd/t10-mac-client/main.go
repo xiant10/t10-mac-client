@@ -19,9 +19,9 @@ import (
 	"github.com/gen2brain/malgo"
 	"github.com/joho/godotenv"
 
-	"t10-client/internal/audio"
-	"t10-client/internal/room"
-	"t10-client/internal/telemetry"
+	"t10-mac-client/internal/audio"
+	"t10-mac-client/internal/room"
+	"t10-mac-client/internal/telemetry"
 )
 
 // setupLogging configures slog output based on the mode and log path.
@@ -122,7 +122,7 @@ func main() {
 	roomName := flag.String("room", "voice-agent-demo", "LiveKit room to join")
 	identity := flag.String("identity", "mic-client", "participant identity")
 	startMode := flag.String("mode", "live", "starting mode: live, text, or voice")
-	logPath := flag.String("log-file", "t10-client.log", "live-call diagnostic log (empty sends logs to stderr)")
+	logPath := flag.String("log-file", "t10-mac-client.log", "live-call diagnostic log (empty sends logs to stderr)")
 	authURL := flag.String("auth-url", "", "Auth service base URL (e.g. http://localhost:8081, env: AUTH_URL)")
 	authToken := flag.String("token", "", "Auth bearer token for room admission (env: AUTH_TOKEN)")
 	tenant := flag.String("tenant", "", "Tenant identifier for room admission (env: AUTH_TENANT)")

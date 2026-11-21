@@ -11,7 +11,7 @@ import (
 // one complete line printed via line(); the agent's reply streams in one
 // rune at a time via agentChunk and is closed off with agentEnd. A mutex is
 // enough to keep them from tearing across goroutines — unlike the old
-// live-call client, at most one exchange is ever in flight (see cmd/client's
+// live-call client, at most one exchange is ever in flight (see cmd/t10-mac-client's
 // REPL), so there's no "whoever is talking owns the line" ownership problem
 // to solve, just "don't interleave two concurrent writers."
 type console struct {
